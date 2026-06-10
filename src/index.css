@@ -2,8 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900;
+    background: white !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1 {
+    font-size: 18pt !important;
+    margin-bottom: 10pt !important;
+  }
+
+  table {
+    width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  td {
+    font-size: 12pt !important;
+    height: 40pt !important;
+    min-width: 80pt !important;
+    border-color: #000 !important;
+  }
+
+  /* Ensure borders print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }

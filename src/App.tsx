@@ -10,13 +10,6 @@ import {
 } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Users, Shuffle, Trash2, UserPlus } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs: (string | undefined | null | false)[]) {
-  return twMerge(clsx(inputs));
-}
 
 // Types
 type Student = {
@@ -33,9 +26,10 @@ function DraggableStudent({ student }: { student: Student }) {
     data: student,
   });
 
-  const style = transform ? {
-    transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
-  } : undefined;
+  const style: React.CSSProperties = {
+    ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : {}),
+    opacity: isDragging ? 0.4 : 1,
+  };
 
   return (
     <div
@@ -43,78 +37,51 @@ function DraggableStudent({ student }: { student: Student }) {
       style={style}
       {...listeners}
       {...attributes}
-      className={cn(
-        "flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-400 hover:shadow-md transition-all z-10",
-        isDragging && "opacity-50 ring-2 ring-blue-500 z-50"
-      )}
+      className="cursor-grab active:cursor-grabbing select-none text-base text-center truncate"
     >
-      <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-        <Users size={14} className="text-blue-600" />
-      </div>
-      <span className="font-medium text-sm truncate">{student.name}</span>
+      {student.name}
     </div>
   );
 }
 
 function Seat({ id, student }: { id: string; student?: Student }) {
-  const { isOver, setNodeRef } = useDroppable({
-    id: id,
-  });
+  const { isOver, setNodeRef } = useDroppable({ id });
+
+  return (
+    <td
+      ref={setNodeRef}
+      className={`border-2 border-gray-400 h-16 min-w-[120px] text-center text-base px-2 ${
+        isOver ? 'bg-blue-100' : student ? 'bg-white' : 'bg-gray-50'
+      }`}
+    >
+      {student ? (
+        <DraggableStudent student={student} />
+      ) : (
+        <span className="text-gray-300 text-sm">{id.replace('seat-', '')}</span>
+      )}
+    </td>
+  );
+}
+
+function WaitlistDropzone({ students }: { students: Student[] }) {
+  const { isOver, setNodeRef } = useDroppable({ id: 'waitlist' });
 
   return (
     <div
       ref={setNodeRef}
-      className={cn(
-        "relative flex flex-col items-center justify-center w-full aspect-square md:aspect-video rounded-xl border-2 transition-all",
-        isOver ? "border-blue-500 bg-blue-50" : "border-dashed border-slate-300 bg-slate-100/50",
-        student ? "border-solid border-slate-200 bg-white shadow-sm" : ""
-      )}
+      className={`border-2 border-gray-400 p-3 min-h-[60px] ${isOver ? 'bg-blue-50' : 'bg-white'}`}
     >
-      <span className="absolute top-2 left-2 text-xs font-bold text-slate-400">
-        {id.replace('seat-', '')}
-      </span>
-      {student ? (
-        <DraggableStudent student={student} />
+      {students.length === 0 ? (
+        <p className="text-gray-400 text-sm text-center py-2">Keine Schüler in der Warteliste</p>
       ) : (
-        <span className="text-slate-400 text-sm">Leer</span>
+        <div className="flex flex-wrap gap-2">
+          {students.map(s => (
+            <div key={s.id} className="border border-gray-300 px-3 py-1 text-sm bg-white">
+              <DraggableStudent student={s} />
+            </div>
+          ))}
+        </div>
       )}
-    </div>
-  );
-}
-
-function Waitlist({ students }: { students: Student[] }) {
-  const { isOver, setNodeRef } = useDroppable({
-    id: 'waitlist',
-  });
-
-  return (
-    <div className="flex flex-col h-full bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-        <h2 className="font-semibold flex items-center gap-2">
-          <Users size={18} className="text-slate-500" />
-          Warteliste
-        </h2>
-        <span className="bg-slate-200 text-slate-700 text-xs font-bold px-2 py-1 rounded-full">
-          {students.length}
-        </span>
-      </div>
-      <div 
-        ref={setNodeRef}
-        className={cn(
-          "flex-1 p-4 overflow-y-auto flex flex-col gap-2 min-h-[150px] transition-colors",
-          isOver && "bg-blue-50/50"
-        )}
-      >
-        {students.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-400 text-sm text-center">
-            Keine Schüler in der Warteliste.<br />Füge neue hinzu oder setze den Plan zurück.
-          </div>
-        ) : (
-          students.map(student => (
-            <DraggableStudent key={student.id} student={student} />
-          ))
-        )}
-      </div>
     </div>
   );
 }
@@ -125,15 +92,11 @@ export default function App() {
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem('sitzplan-students');
     if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error parsing saved students', e);
-      }
+      try { return JSON.parse(saved); } catch { /* ignore */ }
     }
     return [];
   });
-  
+
   useEffect(() => {
     localStorage.setItem('sitzplan-students', JSON.stringify(students));
   }, [students]);
@@ -142,256 +105,208 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor)
   );
 
   const addStudent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || students.length >= 30) return;
-
-    // Mehrere Namen durch Komma oder Zeilenumbruch trennen
     const names = newName.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== '');
-    
     setStudents(prev => {
-      let currentStudents = [...prev];
+      const next = [...prev];
       for (const name of names) {
-        if (currentStudents.length >= 30) break;
-        currentStudents.push({
-          id: `student-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-          name: name,
+        if (next.length >= 30) break;
+        next.push({
+          id: `s-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          name,
           seatId: null,
         });
       }
-      return currentStudents;
+      return next;
     });
     setNewName('');
   };
 
   const removeAll = () => {
-    if(window.confirm('Möchtest du wirklich alle Schüler entfernen?')) {
-      setStudents([]);
-    }
+    if (window.confirm('Alle Schüler entfernen?')) setStudents([]);
   };
 
   const resetSeats = () => {
-    setStudents(students.map(s => ({ ...s, seatId: null })));
+    setStudents(prev => prev.map(s => ({ ...s, seatId: null })));
   };
 
   const distributeRandomly = () => {
     setStudents(prev => {
-      // Berechne, wer schon sitzt und wer noch auf der Warteliste ist
-      const seatedStudents = prev.filter(s => s.seatId !== null);
-      const unseatedStudents = prev.filter(s => s.seatId === null);
-      
-      // Mische die Wartelisten-Schüler
-      let shuffledUnseated = [...unseatedStudents].sort(() => Math.random() - 0.5);
-      
-      // Finde alle leeren Plätze (5x6 Grid war vorher, jetzt 32 Plätze im 3-2-3 Layout)
-      const allSeats = Array.from({length: 32}, (_, i) => `seat-${i + 1}`);
-      const occupiedSeats = new Set(seatedStudents.map(s => s.seatId));
-      const emptySeats = allSeats.filter(seatId => !occupiedSeats.has(seatId));
-      
-      // Mische die leeren Plätze
-      let shuffledEmptySeats = [...emptySeats].sort(() => Math.random() - 0.5);
-
-      // Verteile die ungesetzten Schüler auf die leeren Plätze
-      const newlySeatedStudents = shuffledUnseated.map((student, index) => {
-        return {
-          ...student,
-          seatId: index < shuffledEmptySeats.length ? shuffledEmptySeats[index] : null
-        };
-      });
-
-      return [...seatedStudents, ...newlySeatedStudents];
+      const seated = prev.filter(s => s.seatId !== null);
+      const unseated = [...prev.filter(s => s.seatId === null)].sort(() => Math.random() - 0.5);
+      const allSeats = Array.from({ length: 32 }, (_, i) => `seat-${i + 1}`);
+      const taken = new Set(seated.map(s => s.seatId));
+      const free = allSeats.filter(id => !taken.has(id)).sort(() => Math.random() - 0.5);
+      const placed = unseated.map((s, i) => ({ ...s, seatId: i < free.length ? free[i] : null }));
+      return [...seated, ...placed];
     });
   };
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
+  const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
+  const handleDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
     setActiveId(null);
-
     if (!over) return;
-
-    const studentId = active.id as string;
-    const targetId = over.id as string;
-
+    const sid = active.id as string;
+    const tid = over.id as string;
     setStudents(prev => {
-      const newStudents = [...prev];
-      const studentIndex = newStudents.findIndex(s => s.id === studentId);
-      if (studentIndex === -1) return prev;
-
-      const currentSeatId = newStudents[studentIndex].seatId;
-
-      if (targetId === 'waitlist') {
-        newStudents[studentIndex] = { ...newStudents[studentIndex], seatId: null };
+      const next = [...prev];
+      const si = next.findIndex(s => s.id === sid);
+      if (si === -1) return prev;
+      const cur = next[si].seatId;
+      if (tid === 'waitlist') {
+        next[si] = { ...next[si], seatId: null };
       } else {
-        // target is a seat
-        const existingStudentIndex = newStudents.findIndex(s => s.seatId === targetId);
-        
-        if (existingStudentIndex !== -1 && existingStudentIndex !== studentIndex) {
-          // Swap seats
-          newStudents[existingStudentIndex] = { ...newStudents[existingStudentIndex], seatId: currentSeatId };
-        }
-        newStudents[studentIndex] = { ...newStudents[studentIndex], seatId: targetId };
+        const ei = next.findIndex(s => s.seatId === tid);
+        if (ei !== -1 && ei !== si) next[ei] = { ...next[ei], seatId: cur };
+        next[si] = { ...next[si], seatId: tid };
       }
-
-      return newStudents;
+      return next;
     });
   };
 
   const activeStudent = activeId ? students.find(s => s.id === activeId) : null;
   const waitlistStudents = students.filter(s => s.seatId === null);
 
-  return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans text-slate-900">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        {/* Header & Controls */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-800">Sitzplan Generator</h1>
-              <p className="text-slate-500 text-sm mt-1">
-                Füge bis zu 30 Schüler hinzu und verteile sie auf die Plätze.
-              </p>
-            </div>
-            
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={resetSeats}
-                className="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-2"
-              >
-                Zurücksetzen
-              </button>
-              <button
-                onClick={distributeRandomly}
-                disabled={students.length === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-lg shadow-sm transition-colors flex items-center gap-2"
-              >
-                <Shuffle size={16} />
-                Zufällig verteilen
-              </button>
-            </div>
-          </div>
+  // Build 4 rows, each: 3 seats | gap | 2 seats | gap | 3 seats
+  const rows: string[][] = [];
+  let counter = 1;
+  for (let r = 0; r < 4; r++) {
+    const row: string[] = [];
+    for (let c = 0; c < 8; c++) {
+      row.push(`seat-${counter}`);
+      counter++;
+    }
+    rows.push(row);
+  }
 
-          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-start md:items-center">
-            <form onSubmit={addStudent} className="flex-1 flex gap-2 w-full">
-              <div className="flex-1">
-                <label htmlFor="nameInput" className="sr-only">Schülername</label>
-                <textarea
-                  id="nameInput"
-                  rows={2}
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      addStudent(e as unknown as React.FormEvent);
-                    }
-                  }}
-                  placeholder="Namen der Schüler eingeben (durch Komma oder Zeilenumbruch trennen)..."
-                  disabled={students.length >= 30}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all disabled:opacity-50 resize-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={!newName.trim() || students.length >= 30}
-                className="px-4 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 flex-shrink-0 h-fit mt-1"
-              >
-                <UserPlus size={18} />
-                <span className="hidden sm:inline">Klasse hinzufügen</span>
-              </button>
-            </form>
-            
+  return (
+    <div className="min-h-screen bg-white p-6 md:p-10" style={{ fontFamily: 'Segoe UI, Arial, sans-serif' }}>
+      <div className="max-w-6xl mx-auto">
+
+        <h1 className="text-2xl font-bold mb-6 border-b-2 border-gray-400 pb-3">Sitzplan Generator</h1>
+
+        {/* Controls - hidden when printing */}
+        <div className="no-print flex flex-wrap gap-3 mb-6 items-start">
+          <form onSubmit={addStudent} className="flex gap-3 flex-1 min-w-[300px]">
+            <textarea
+              rows={2}
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  addStudent(e as unknown as React.FormEvent);
+                }
+              }}
+              placeholder="Namen eingeben (Komma oder Zeilenumbruch)..."
+              disabled={students.length >= 30}
+              className="flex-1 border-2 border-gray-400 px-3 py-2 text-base resize-none focus:outline-none focus:border-blue-500"
+            />
             <button
-              onClick={removeAll}
-              disabled={students.length === 0}
-              className="p-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0 mt-1"
-              title="Alle Schüler löschen"
+              type="submit"
+              disabled={!newName.trim() || students.length >= 30}
+              className="border-2 border-gray-400 px-4 py-2 text-base bg-gray-100 hover:bg-gray-200 disabled:opacity-40 h-fit font-medium"
             >
-              <Trash2 size={20} />
+              Hinzufügen
             </button>
-          </div>
-          {students.length >= 30 && (
-            <p className="text-amber-500 text-sm mt-2 font-medium">
-              Maximale Anzahl von 30 Schülern erreicht.
-            </p>
-          )}
+          </form>
+          <button onClick={distributeRandomly} disabled={waitlistStudents.length === 0}
+            className="border-2 border-gray-400 px-4 py-2 text-base bg-gray-100 hover:bg-gray-200 disabled:opacity-40 font-medium">
+            ↻ Zufällig verteilen
+          </button>
+          <button onClick={resetSeats}
+            className="border-2 border-gray-400 px-4 py-2 text-base bg-gray-100 hover:bg-gray-200 font-medium">
+            Zurücksetzen
+          </button>
+          <button onClick={removeAll} disabled={students.length === 0}
+            className="border-2 border-gray-400 px-4 py-2 text-base bg-red-50 hover:bg-red-100 text-red-600 disabled:opacity-40 font-medium">
+            Alle löschen
+          </button>
+          <button onClick={() => window.print()}
+            className="border-2 border-gray-400 px-4 py-2 text-base bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium">
+            🖨 Drucken
+          </button>
         </div>
 
-        {/* Main Content Area */}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            {/* Sidebar: Waitlist */}
-            <div className="lg:col-span-1 flex flex-col h-[600px] lg:h-auto">
-              <Waitlist students={waitlistStudents} />
+          {/* Warteliste */}
+          <div className="mb-6 no-print">
+            <div className="text-sm font-bold text-gray-500 mb-1 uppercase tracking-wide">
+              Warteliste ({waitlistStudents.length})
             </div>
-
-            {/* Main: Seating Grid */}
-            <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-              <div className="min-w-[800px]">
-                <div className="flex justify-start mb-8">
-                  <div className="px-8 py-3 bg-slate-800 text-white font-semibold rounded-lg shadow-md flex items-center gap-2">
-                    Lehrerpult
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-10 gap-2 md:gap-3">
-                  {(() => {
-                    let seatCounter = 1;
-                    const cells = [];
-                    for (let row = 0; row < 4; row++) {
-                      for (let col = 0; col < 10; col++) {
-                        // Gänge (Aisles) bei Index 3 und 6
-                        if (col === 3 || col === 6) {
-                          cells.push(<div key={`aisle-${row}-${col}`} className="w-full" />);
-                        } else {
-                          // Sitzplätze bis 32 (für perfekte Symmetrie)
-                          if (seatCounter <= 32) {
-                            const seatId = `seat-${seatCounter}`;
-                            const student = students.find(s => s.seatId === seatId);
-                            cells.push(<Seat key={seatId} id={seatId} student={student} />);
-                            seatCounter++;
-                          } else {
-                            cells.push(<div key={`empty-${row}-${col}`} className="w-full" />);
-                          }
-                        }
-                      }
-                    }
-                    return cells;
-                  })()}
-                </div>
-              </div>
-            </div>
-
+            <WaitlistDropzone students={waitlistStudents} />
           </div>
 
-          <DragOverlay dropAnimation={{
-            duration: 200,
-            easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
-          }}>
+          {/* Sitzplan Table */}
+          <div className="overflow-x-auto" id="sitzplan">
+            <div className="text-sm font-bold text-gray-500 mb-2 uppercase tracking-wide">
+              Sitzplan
+            </div>
+
+            <table className="border-collapse border-2 border-gray-400 mb-4">
+              <tbody>
+                {/* Lehrerpult row */}
+                <tr>
+                  <td colSpan={3} className="border-2 border-gray-400 bg-gray-300 text-center text-base font-bold py-3 px-4">
+                    Lehrerpult
+                  </td>
+                  <td className="border-0 w-8"></td>
+                  <td colSpan={2} className="border-2 border-gray-400 bg-gray-100"></td>
+                  <td className="border-0 w-8"></td>
+                  <td colSpan={3} className="border-2 border-gray-400 bg-gray-100"></td>
+                </tr>
+
+                {/* Spacer row */}
+                <tr>
+                  <td colSpan={3} className="border-0 h-4"></td>
+                  <td className="border-0 w-8"></td>
+                  <td colSpan={2} className="border-0 h-4"></td>
+                  <td className="border-0 w-8"></td>
+                  <td colSpan={3} className="border-0 h-4"></td>
+                </tr>
+
+                {/* Seat rows */}
+                {rows.map((row, ri) => (
+                  <tr key={ri}>
+                    {/* Left block: 3 seats */}
+                    {row.slice(0, 3).map(seatId => (
+                      <Seat key={seatId} id={seatId} student={students.find(s => s.seatId === seatId)} />
+                    ))}
+                    {/* Aisle */}
+                    <td className="border-0 w-8 bg-white"></td>
+                    {/* Middle block: 2 seats */}
+                    {row.slice(3, 5).map(seatId => (
+                      <Seat key={seatId} id={seatId} student={students.find(s => s.seatId === seatId)} />
+                    ))}
+                    {/* Aisle */}
+                    <td className="border-0 w-8 bg-white"></td>
+                    {/* Right block: 3 seats */}
+                    {row.slice(5, 8).map(seatId => (
+                      <Seat key={seatId} id={seatId} student={students.find(s => s.seatId === seatId)} />
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <DragOverlay>
             {activeStudent ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-white border border-blue-400 rounded-lg shadow-xl cursor-grabbing ring-2 ring-blue-500 opacity-90 rotate-2 scale-105">
-                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center">
-                  <Users size={14} className="text-blue-600" />
-                </div>
-                <span className="font-medium text-sm">{activeStudent.name}</span>
+              <div className="border-2 border-blue-500 bg-white px-3 py-2 text-base shadow-sm">
+                {activeStudent.name}
               </div>
             ) : null}
           </DragOverlay>
