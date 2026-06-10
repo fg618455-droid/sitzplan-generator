@@ -331,22 +331,37 @@ export default function App() {
 
             {/* Main: Seating Grid */}
             <div className="lg:col-span-3 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-              <div className="min-w-[600px]">
-                {/* Teacher Desk indicator */}
-                <div className="flex justify-center mb-8">
+              <div className="min-w-[800px]">
+                <div className="flex justify-start mb-8">
                   <div className="px-8 py-3 bg-slate-800 text-white font-semibold rounded-lg shadow-md flex items-center gap-2">
                     Lehrerpult
                   </div>
                 </div>
 
-                <div className="grid grid-cols-6 gap-4">
-                  {Array.from({ length: 30 }).map((_, i) => {
-                    const seatId = `seat-${i + 1}`;
-                    const student = students.find(s => s.seatId === seatId);
-                    return (
-                      <Seat key={seatId} id={seatId} student={student} />
-                    );
-                  })}
+                <div className="grid grid-cols-10 gap-2 md:gap-3">
+                  {(() => {
+                    let seatCounter = 1;
+                    const cells = [];
+                    for (let row = 0; row < 4; row++) {
+                      for (let col = 0; col < 10; col++) {
+                        // Gänge (Aisles) bei Index 3 und 6
+                        if (col === 3 || col === 6) {
+                          cells.push(<div key={`aisle-${row}-${col}`} className="w-full" />);
+                        } else {
+                          // Sitzplätze bis 30
+                          if (seatCounter <= 30) {
+                            const seatId = `seat-${seatCounter}`;
+                            const student = students.find(s => s.seatId === seatId);
+                            cells.push(<Seat key={seatId} id={seatId} student={student} />);
+                            seatCounter++;
+                          } else {
+                            cells.push(<div key={`empty-${row}-${col}`} className="w-full" />);
+                          }
+                        }
+                      }
+                    }
+                    return cells;
+                  })()}
                 </div>
               </div>
             </div>
