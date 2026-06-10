@@ -154,13 +154,21 @@ export default function App() {
     e.preventDefault();
     if (!newName.trim() || students.length >= 30) return;
 
-    const newStudent: Student = {
-      id: `student-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-      name: newName.trim(),
-      seatId: null,
-    };
-
-    setStudents([...students, newStudent]);
+    // Mehrere Namen durch Komma oder Zeilenumbruch trennen
+    const names = newName.split(/[\n,]+/).map(n => n.trim()).filter(n => n !== '');
+    
+    setStudents(prev => {
+      let currentStudents = [...prev];
+      for (const name of names) {
+        if (currentStudents.length >= 30) break;
+        currentStudents.push({
+          id: `student-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
+          name: name,
+          seatId: null,
+        });
+      }
+      return currentStudents;
+    });
     setNewName('');
   };
 
@@ -275,34 +283,40 @@ export default function App() {
             </div>
           </div>
 
-          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-end">
+          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col md:flex-row gap-4 items-start md:items-center">
             <form onSubmit={addStudent} className="flex-1 flex gap-2 w-full">
               <div className="flex-1">
                 <label htmlFor="nameInput" className="sr-only">Schülername</label>
-                <input
+                <textarea
                   id="nameInput"
-                  type="text"
+                  rows={2}
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
-                  placeholder="Name des Schülers..."
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      addStudent(e as unknown as React.FormEvent);
+                    }
+                  }}
+                  placeholder="Namen der Schüler eingeben (durch Komma oder Zeilenumbruch trennen)..."
                   disabled={students.length >= 30}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all disabled:opacity-50"
+                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all disabled:opacity-50 resize-none"
                 />
               </div>
               <button
                 type="submit"
                 disabled={!newName.trim() || students.length >= 30}
-                className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 flex-shrink-0"
+                className="px-4 py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2 flex-shrink-0 h-fit mt-1"
               >
                 <UserPlus size={18} />
-                <span className="hidden sm:inline">Hinzufügen</span>
+                <span className="hidden sm:inline">Klasse hinzufügen</span>
               </button>
             </form>
             
             <button
               onClick={removeAll}
               disabled={students.length === 0}
-              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0"
+              className="p-3 text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0 mt-1"
               title="Alle Schüler löschen"
             >
               <Trash2 size={20} />
