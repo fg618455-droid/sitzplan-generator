@@ -183,8 +183,8 @@ export default function App() {
       // Mische die Wartelisten-Schüler
       let shuffledUnseated = [...unseatedStudents].sort(() => Math.random() - 0.5);
       
-      // Finde alle leeren Plätze (5x6 Grid = 30 Plätze)
-      const allSeats = Array.from({length: 30}, (_, i) => `seat-${i + 1}`);
+      // Finde alle leeren Plätze (5x6 Grid war vorher, jetzt 32 Plätze im 3-2-3 Layout)
+      const allSeats = Array.from({length: 32}, (_, i) => `seat-${i + 1}`);
       const occupiedSeats = new Set(seatedStudents.map(s => s.seatId));
       const emptySeats = allSeats.filter(seatId => !occupiedSeats.has(seatId));
       
@@ -348,8 +348,8 @@ export default function App() {
                         if (col === 3 || col === 6) {
                           cells.push(<div key={`aisle-${row}-${col}`} className="w-full" />);
                         } else {
-                          // Sitzplätze bis 30
-                          if (seatCounter <= 30) {
+                          // Sitzplätze bis 32 (für perfekte Symmetrie)
+                          if (seatCounter <= 32) {
                             const seatId = `seat-${seatCounter}`;
                             const student = students.find(s => s.seatId === seatId);
                             cells.push(<Seat key={seatId} id={seatId} student={student} />);
